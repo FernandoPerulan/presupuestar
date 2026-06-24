@@ -1,2 +1,2 @@
-fpdf2
+fpdf
 st-gsheets-connection
