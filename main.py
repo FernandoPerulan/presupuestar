@@ -3,14 +3,11 @@ import urllib.parse
 from fpdf import FPDF
 from datetime import datetime
 from streamlit_gsheets import GSheetsConnection
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseUpload
-import io
 
-# --- INTERFAZ DE STREAMLIT ---
+# --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="Generador de Presupuestos", layout="wide")
 
-# 1. Conexión con Google Sheets
+# 1. Conexión con Google Sheets para el Catálogo
 @st.cache_data(ttl=60)
 def cargar_datos_sheets(sheet_name):
     conn = st.connection("gsheets", type=GSheetsConnection)
@@ -30,42 +27,20 @@ try:
             "desc": str(row["Descripcion"])
         }
 except Exception as e:
-    # Plan de respaldo local por si falla Sheets
+    # Respaldo automático si el Sheets está offline o cargando
     ITEMS_PRECARGADOS = {
         "Desarrollo MVP Web": {"costo": 50000, "pvp": 150000, "desc": "Sitio web básico en React/Python"},
         "Mantenimiento Mensual": {"costo": 10000, "pvp": 35000, "desc": "Soporte técnico y actualizaciones"},
         "Automatización con Bot": {"costo": 30000, "pvp": 90000, "desc": "Bot de WhatsApp/Telegram para turnos"}
     }
 
-# 2. Función para subir el PDF a Google Drive y obtener el link público
-from google.oauth2 import service_account
-import requests
-
-def subir_a_drive_y_obtener_link(pdf_bytes, nombre_archivo):
-    try:
-        # Enviamos el PDF en memoria directamente al servidor temporal
-        response = requests.post(
-            'https://file.io',
-            files={'file': (nombre_archivo, pdf_bytes, 'application/pdf')}
-        )
-        
-        if response.status_code == 200:
-            data = response.json()
-            # Retorna el link público automático para el cliente
-            return data.get('link')
-        else:
-            st.error(f"Error del servidor de archivos (Código {response.status_code})")
-            return None
-    except Exception as err:
-        st.error(f"Error al procesar el enlace de envío: {err}")
-        return None
-
-# 3. Función para crear el PDF
+# 2. Función para crear el PDF (Estructura Moderna FPDF2)
 def generar_presupuesto_pdf(nombre, telefono, items_elegidos):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_margins(15, 15, 15)
     
+    # Encabezado
     pdf.set_font("Helvetica", "B", 20)
     pdf.set_text_color(30, 58, 138) 
     pdf.cell(100, 10, "InnovaSoft", new_x="RIGHT", new_y="TOP")
@@ -84,6 +59,7 @@ def generar_presupuesto_pdf(nombre, telefono, items_elegidos):
     pdf.cell(180, 6, "Validez: 15 días", align="R", new_x="LMARGIN", new_y="NEXT")
     pdf.ln(10)
     
+    # Bloques de datos
     y_pos = pdf.get_y()
     pdf.set_fill_color(248, 250, 252)
     pdf.rect(15, y_pos, 85, 28, "F")
@@ -95,7 +71,6 @@ def generar_presupuesto_pdf(nombre, telefono, items_elegidos):
     pdf.set_text_color(75, 85, 99)
     pdf.set_x(18)
     pdf.cell(80, 5, "InnovaSoft Tech", new_x="LMARGIN", new_y="NEXT")
-    pdf.set_x(18)
     pdf.cell(80, 5, "Maipú, Mendoza, Argentina", new_x="LMARGIN", new_y="NEXT")
     
     pdf.rect(110, y_pos, 85, 28, "F")
@@ -107,11 +82,11 @@ def generar_presupuesto_pdf(nombre, telefono, items_elegidos):
     pdf.set_text_color(75, 85, 99)
     pdf.set_x(113)
     pdf.cell(80, 5, f"Cliente: {nombre}", new_x="LMARGIN", new_y="NEXT")
-    pdf.set_x(113)
     pdf.cell(80, 5, f"Teléfono: {telefono}", new_x="LMARGIN", new_y="NEXT")
     
     pdf.set_xy(15, y_pos + 35)
     
+    # Tabla de precios
     pdf.set_fill_color(30, 58, 138)
     pdf.set_text_color(255, 255, 255)
     pdf.set_font("Helvetica", "B", 10)
@@ -163,8 +138,8 @@ def generar_presupuesto_pdf(nombre, telefono, items_elegidos):
     
     return bytes(pdf.output())
 
-# --- CONTROL DE VISTAS ---
-st.title("💼 Generador de Presupuestos Inteligente")
+# --- INTERFAZ ---
+st.title("💼 Generador de Presupuestos Express")
 
 tab1, tab2 = st.tabs(["📄 Crear Presupuesto", "📊 Panel de Costos (Dueño)"])
 
@@ -182,40 +157,39 @@ with tab1:
         
         st.markdown(f"## **Total: ${total_pvp:,}**")
         st.write("---")
+        st.subheader("🚀 Acciones de Envío")
         
-        # 🚀 LA MAGIA: Al tocar este botón se hace todo en background
-        if st.button("🚀 Generar y Preparar Envío"):
-            with st.spinner("Generando PDF y subiéndolo a tu Drive..."):
-                nombre_formateado = nombre_cliente.replace(' ', '_') if nombre_cliente else 'Cliente'
-                nombre_archivo_pdf = f"Presupuesto_{nombre_formateado}.pdf"
-                
-                # 1. Crea el PDF
+        col_btn1, col_btn2 = st.columns(2)
+        
+        with col_btn1:
+            try:
                 pdf_bytes = generar_presupuesto_pdf(nombre_cliente, whatsapp, items_seleccionados)
+                st.download_button(
+                    label="📥 1. Descargar Presupuesto PDF",
+                    data=pdf_bytes,
+                    file_name=f"Presupuesto_{nombre_cliente.replace(' ', '_') if nombre_cliente else 'Cliente'}.pdf",
+                    mime="application/pdf"
+                )
+                st.caption("Guardá el archivo formal en tu dispositivo.")
+            except Exception as pdf_err:
+                st.error(f"Error generando el PDF: {pdf_err}")
                 
-                # 2. Sube a Drive y trae el link
-                url_pdf_drive = subir_a_drive_y_obtener_link(pdf_bytes, nombre_archivo_pdf)
-                
-                if url_pdf_drive:
-                    st.success("¡PDF guardado en la nube con éxito!")
-                    
-                    # 3. Prepara el texto automatizado con el link incluido
-                    resumen_texto = "".join([f"- {i}: ${ITEMS_PRECARGADOS[i]['pvp']:,}\n" for i in items_seleccionados])
-                    mensaje_ws = (
-                        f"¡Hola {nombre_cliente if nombre_cliente else 'Cliente'}! Te adjunto el presupuesto solicitado:\n\n"
-                        f"{resumen_texto}\n"
-                        f"*Total: ${total_pvp:,}*\n\n"
-                        f"📄 Podés ver y descargar tu PDF formal desde Drive acá:\n{url_pdf_drive}\n\n"
-                        f"Quedo a tu disposición."
-                    )
-                    
-                    mensaje_encoded = urllib.parse.quote(mensaje_ws)
-                    link_whatsapp = f"https://wa.me/{whatsapp}?text={mensaje_encoded}"
-                    
-                    # Botón dinámico para abrir el chat
-                    if whatsapp:
-                        st.markdown(f"### [💬 Hacer clic acá para mandar por WhatsApp]({link_whatsapp})")
-                    else:
-                        st.warning("El PDF se subió a Drive pero te falta cargar el número de WhatsApp para abrir el chat.")
+        with col_btn2:
+            resumen_texto = "".join([f"- {i}: ${ITEMS_PRECARGADOS[i]['pvp']:,}\n" for i in items_seleccionados])
+            mensaje_ws = (
+                f"¡Hola {nombre_cliente if nombre_cliente else 'Cliente'}! Te adjunto el detalle del presupuesto solicitado:\n\n"
+                f"{resumen_texto}\n"
+                f"*Total: ${total_pvp:,}*\n\n"
+                f"*(Te adjunto el documento PDF formal por este medio)*"
+            )
+            mensaje_encoded = urllib.parse.quote(mensaje_ws)
+            link_whatsapp = f"https://wa.me/{whatsapp}?text={mensaje_encoded}"
+            
+            if whatsapp:
+                st.markdown(f"### [💬 2. Abrir WhatsApp y Adjuntar]({link_whatsapp})")
+                st.caption("Abre el chat con el texto listo. Solo tocás el clip y arrastrás el PDF descargado.")
+            else:
+                st.warning("Falta cargar el número de WhatsApp.")
 
 with tab2:
     st.subheader("📈 Análisis de Rentabilidad")
