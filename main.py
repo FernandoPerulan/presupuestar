@@ -140,7 +140,7 @@ def generar_presupuesto_pdf(nombre, telefono, items_elegidos):
     pdf.cell(180, 5, "InnovaSoft © 2026 - Mendoza, Argentina", ln=1, align="C")
     
     # Retornar el PDF como un string de bytes listo para descargar
-    return pdf.output()
+    return bytes(pdf.output())
 
 # --- INTERFAZ DE STREAMLIT ---
 st.set_page_config(page_title="Generador de Presupuestos", layout="wide")
