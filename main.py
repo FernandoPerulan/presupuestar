@@ -39,39 +39,25 @@ except Exception as e:
 
 # 2. Función para subir el PDF a Google Drive y obtener el link público
 from google.oauth2 import service_account
+import requests
 
-# 2. Función corregida para subir el PDF a Google Drive
 def subir_a_drive_y_obtener_link(pdf_bytes, nombre_archivo):
     try:
-        # Traemos de forma segura el diccionario de credenciales que ya tenés en tus Secrets
-        info_secrets = st.secrets["connections"]["gsheets"]
+        # Enviamos el PDF en memoria directamente al servidor temporal
+        response = requests.post(
+            'https://file.io',
+            files={'file': (nombre_archivo, pdf_bytes, 'application/pdf')}
+        )
         
-        # Creamos las credenciales explícitas para la API de Google
-        creds = service_account.Credentials.from_service_account_info(info_secrets)
-        
-        # Inicializamos el servicio de Google Drive con las credenciales limpias
-        service = build('drive', 'v3', credentials=creds)
-        
-        # Configuramos los metadatos del archivo
-        file_metadata = {'name': nombre_archivo, 'mimeType': 'application/pdf'}
-        
-        # Preparamos el archivo en memoria RAM
-        fh = io.BytesIO(pdf_bytes)
-        media = MediaIoBaseUpload(fh, mimeType='application/pdf', resumable=True)
-        
-        # Subimos el archivo a la raíz de tu Drive
-        file = service.files().create(body=file_metadata, media_body=media, fields='id').execute()
-        file_id = file.get('id')
-        
-        # Cambiamos los permisos para que CUALQUIERA con el link lo pueda leer (Público)
-        user_permission = {'type': 'anyone', 'role': 'reader'}
-        service.permissions().create(fileId=file_id, body=user_permission).execute()
-        
-        # Construimos el enlace web de visualización directa
-        link_publico = f"https://drive.google.com/file/d/{file_id}/view?usp=sharing"
-        return link_publico
-    except Exception as drive_err:
-        st.error(f"Error al subir a Google Drive: {drive_err}")
+        if response.status_code == 200:
+            data = response.json()
+            # Retorna el link público automático para el cliente
+            return data.get('link')
+        else:
+            st.error(f"Error del servidor de archivos (Código {response.status_code})")
+            return None
+    except Exception as err:
+        st.error(f"Error al procesar el enlace de envío: {err}")
         return None
 
 # 3. Función para crear el PDF
