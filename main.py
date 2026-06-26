@@ -215,12 +215,14 @@ with tab1:
                     url_pdf = subir_pdf_a_supabase_storage(pdf_bytes, nombre_archivo_pdf)
                     
                     if url_pdf:
-                        resumen_texto = "".join([f"- {i}: ${ITEMS_PRECARGADOS[i]['pvp']:,}\n" for i in items_seleccionados])
+                        # Modificado: Agregamos el emoji de rombo azul a cada ítem de la lista de forma segura
+                        resumen_texto = "".join([f"🔹 *{i}:* ${ITEMS_PRECARGADOS[i]['pvp']:,}\n" for i in items_seleccionados])
+                        
                         mensaje_ws = (
                             f"💼 *InnovaSoft Tech — Presupuesto*\n\n"
                             f"¡Hola {nombre_cliente if nombre_cliente else 'Cliente'}! "
                             f"Te adjunto el detalle de la solución digital solicitada:\n\n"
-                            f"{resumen_texto}\n"  # Acá cada ítem puede arrancar con 🔹 o 🖥️
+                            f"{resumen_texto}\n"
                             f"💰 *Total Estimado: ${total_pvp:,}*\n"
                             f"📅 _Validez del presupuesto: 15 días_\n\n"
                             f"📄 Podés ver y descargar el documento formal completo desde acá:\n"
@@ -228,11 +230,10 @@ with tab1:
                             f"🤝 Quedo a tu disposición para cualquier consulta."
                         )
                         
-                        # 🌟 el texto se transforme a bytes UTF-8 antes de convertirse en URL
+                        # 🌟 LA SOLUCIÓN AQUÍ: Forzamos el encoding en UTF-8 para que WhatsApp reconozca los emojis perfectos
                         mensaje_utf8 = mensaje_ws.encode('utf-8')
                         mensaje_encoded = urllib.parse.quote(mensaje_utf8)
                         
-                        # Armamos el enlace limpio para WhatsApp
                         link_whatsapp = f"https://wa.me/{whatsapp}?text={mensaje_encoded}"
                         
                         if whatsapp:
@@ -240,7 +241,6 @@ with tab1:
                             st.markdown(f"### [💬 Hacer clic para enviar por WhatsApp]({link_whatsapp})")
                         else:
                             st.warning("El PDF se subió con éxito, pero necesitás ingresar el número de WhatsApp para abrir el chat.")
-
 with tab2:
     st.subheader("📈 Análisis de Rentabilidad")
     if items_seleccionados:
