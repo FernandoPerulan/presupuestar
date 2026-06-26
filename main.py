@@ -38,13 +38,18 @@ except Exception as e:
     }
 
 # 2. Función para subir el PDF a Google Drive y obtener el link público
+from google.oauth2 import service_account
+
+# 2. Función corregida para subir el PDF a Google Drive
 def subir_a_drive_y_obtener_link(pdf_bytes, nombre_archivo):
     try:
-        # Reutilizamos las credenciales que Streamlit ya tiene configuradas de Google Sheets
-        conn = st.connection("gsheets", type=GSheetsConnection)
-        creds = conn._client._creds
+        # Traemos de forma segura el diccionario de credenciales que ya tenés en tus Secrets
+        info_secrets = st.secrets["connections"]["gsheets"]
         
-        # Inicializamos el servicio de Google Drive
+        # Creamos las credenciales explícitas para la API de Google
+        creds = service_account.Credentials.from_service_account_info(info_secrets)
+        
+        # Inicializamos el servicio de Google Drive con las credenciales limpias
         service = build('drive', 'v3', credentials=creds)
         
         # Configuramos los metadatos del archivo
