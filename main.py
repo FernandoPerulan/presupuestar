@@ -4,6 +4,7 @@ from fpdf import FPDF
 from datetime import datetime
 
 # 1. Base de datos simulada (Ítems precargados con Costo y PVP)
+ITEMS_PRECARGADOS = {}
 # ITEMS_PRECARGADOS = {
 #   "Desarrollo MVP Web": {"costo": 50000, "pvp": 150000, "desc": "Sitio web básico en React/Python"},
 #    "Mantenimiento Mensual": {"costo": 10000, "pvp": 35000, "desc": "Soporte técnico y actualizaciones"},
