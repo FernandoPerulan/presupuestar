@@ -170,7 +170,12 @@ def generar_presupuesto_pdf(nombre, telefono, items_elegidos):
 # --- INTERFAZ ---
 st.title("💼 Generador de Presupuestos Automatizado")
 
-tab1, tab2 = st.tabs(["📄 Crear Presupuesto", "📊 Panel de Costos (Dueño)"])
+# Añadimos la tercera pestaña para la carga de datos
+tab1, tab2, tab3 = st.tabs([
+    "📄 Crear Presupuesto", 
+    "📊 Panel de Costos (Dueño)", 
+    "📦 Cargar Productos/Servicios"
+])
 
 with tab1:
     st.subheader("Datos del Cliente")
@@ -249,3 +254,50 @@ with tab2:
         col_a.metric("Ingreso Bruto (PVP)", f"${total_pvp:,}")
         col_b.metric("Costo Interno", f"${total_costo:,}", delta_color="inverse")
         col_c.metric("Ganancia Neta", f"${ganancia_neta:,}", f"{margen:.1f}% Margen")
+
+with tab3:
+    st.subheader("➕ Registrar Nuevo Producto o Servicio")
+    st.write("Completá los campos para agregarlo directamente al catálogo de Supabase.")
+    
+    # Formulario de carga limpia
+    with st.form("form_carga_producto", clear_on_submit=True):
+        col_prod1, col_prod2 = st.columns(2)
+        
+        nuevo_nombre = col_prod1.text_input("Nombre del Producto / Servicio", placeholder="Ej: Bot de reserva de turnos")
+        nuevo_descripcion = col_prod2.text_input("Descripción corta", placeholder="Ej: Integración con Google Calendar")
+        
+        col_prod3, col_prod4 = st.columns(2)
+        nuevo_costo = col_prod3.number_input("Costo Interno ($)", min_value=0, value=0, step=1000)
+        nuevo_pvp = col_prod4.number_input("Precio de Venta al Público ($)", min_value=0, value=0, step=1000)
+        
+        boton_guardar = st.form_submit_button("💾 Guardar en catálogo")
+        
+        if boton_guardar:
+            if not nuevo_nombre:
+                st.error("El nombre del producto es obligatorio.")
+            elif nuevo_pvp <= 0:
+                st.error("El precio de venta (PVP) debe ser mayor a $0.")
+            else:
+                with st.spinner("Conectando con Supabase..."):
+                    resultado = guardar_producto_supabase(nuevo_nombre, nuevo_costo, nuevo_pvp, nuevo_descripcion)
+                    if resultado:
+                        st.success(f"¡'{nuevo_nombre}' se agregó correctamente!")
+                        # Limpiamos la caché de Streamlit para que aparezca inmediatamente en la pestaña 1
+                        st.cache_data.clear()
+                        # Forzamos un leve refresh visual
+                        st.rerun()
+
+# 4. Función para insertar un nuevo producto en la base de datos
+def guardar_producto_supabase(nombre, costo, pvp, descripcion):
+    try:
+        data = {
+            "producto": nombre.strip(),
+            "costo": int(costo),
+            "pvp": int(pvp),
+            "descripcion": descripcion.strip()
+        }
+        response = supabase.table("productos").insert(data).execute()
+        return response
+    except Exception as e:
+        st.error(f"Error al guardar el producto en la base de datos: {e}")
+        return None
