@@ -4,13 +4,27 @@ from fpdf import FPDF
 from datetime import datetime
 
 # 1. Base de datos simulada (Ítems precargados con Costo y PVP)
+from streamlit_gsheets import GSheetsConnection
+
+# Función para conectar con Google Sheets
+@st.cache_data(ttl=60)
+def cargar_datos_sheets(sheet_name):
+    conn = st.connection("gsheets", type=GSheetsConnection)
+    df = conn.read(worksheet=sheet_name)
+    return df
+
+# Intentar rellenar el diccionario con los datos del Sheets online
 ITEMS_PRECARGADOS = {}
-# ITEMS_PRECARGADOS = {
-#   "Desarrollo MVP Web": {"costo": 50000, "pvp": 150000, "desc": "Sitio web básico en React/Python"},
-#    "Mantenimiento Mensual": {"costo": 10000, "pvp": 35000, "desc": "Soporte técnico y actualizaciones"},
-#    "Automatización con Bot": {"costo": 30000, "pvp": 90000, "desc": "Bot de WhatsApp/Telegram para turnos"},
-#    "Consultoría Tecnológica (Hora)": {"costo": 5000, "pvp": 15000, "desc": "Asesoramiento personalizado"}
-#}
+try:
+    df_productos = cargar_datos_sheets("Productos")
+    for _, row in df_productos.iterrows():
+        ITEMS_PRECARGADOS[row["Producto"]] = {
+            "costo": int(row["Costo"]),
+            "pvp": int(row["PVP"]),
+            "desc": row["Descripcion"]
+        }
+except Exception as e:
+    st.sidebar.error("Esperando conexión correcta con Google Sheets...")
 
 # 2. Función para crear el PDF en base a los datos cargados
 def generar_presupuesto_pdf(nombre, telefono, items_elegidos):
