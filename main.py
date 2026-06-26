@@ -227,7 +227,12 @@ with tab1:
                             f"{url_pdf}\n\n"
                             f"🤝 Quedo a tu disposición para cualquier consulta."
                         )
-                        mensaje_encoded = urllib.parse.quote(mensaje_ws)
+                        
+                        # 🌟 el texto se transforme a bytes UTF-8 antes de convertirse en URL
+                        mensaje_utf8 = mensaje_ws.encode('utf-8')
+                        mensaje_encoded = urllib.parse.quote(mensaje_utf8)
+                        
+                        # Armamos el enlace limpio para WhatsApp
                         link_whatsapp = f"https://wa.me/{whatsapp}?text={mensaje_encoded}"
                         
                         if whatsapp:
