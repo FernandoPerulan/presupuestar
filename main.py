@@ -2,39 +2,68 @@ import streamlit as st
 import urllib.parse
 from fpdf import FPDF
 from datetime import datetime
-from streamlit_gsheets import GSheetsConnection
+from supabase import create_client, Client
+import io
 
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="Generador de Presupuestos", layout="wide")
 
-# 1. Conexión con Google Sheets para el Catálogo
+# --- CONEXIÓN DE SUPABASE ---
+SUPABASE_URL = st.secrets["SUPABASE_URL"]
+SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# 1. Cargar catálogo desde la tabla "productos" en Supabase
 @st.cache_data(ttl=60)
-def cargar_datos_sheets(sheet_name):
-    conn = st.connection("gsheets", type=GSheetsConnection)
-    df = conn.read(worksheet=sheet_name)
-    return df
+def cargar_datos_supabase():
+    try:
+        # Trae todas las filas de la tabla 'productos'
+        response = supabase.table("productos").select("*").execute()
+        return response.data
+    except Exception as e:
+        st.error(f"Error al conectar con la base de datos de Supabase: {e}")
+        return None
 
 ITEMS_PRECARGADOS = {}
+datos_db = cargar_datos_supabase()
 
-try:
-    df_productos = cargar_datos_sheets("Productos")
-    df_productos.columns = df_productos.columns.str.strip()
-    for _, row in df_productos.iterrows():
-        producto_nombre = str(row["Producto"]).strip()
+if datos_db:
+    for row in datos_db:
+        # Ajustá los nombres de las columnas en minúscula/mayúscula según los creaste en Supabase
+        producto_nombre = str(row.get("producto", row.get("Producto", ""))).strip()
         ITEMS_PRECARGADOS[producto_nombre] = {
-            "costo": int(row["Costo"]),
-            "pvp": int(row["PVP"]),
-            "desc": str(row["Descripcion"])
+            "costo": int(row.get("costo", row.get("Costo", 0))),
+            "pvp": int(row.get("pvp", row.get("PVP", 0))),
+            "desc": str(row.get("descripcion", row.get("Descripcion", "")))
         }
-except Exception as e:
-    # Respaldo automático si el Sheets está offline o cargando
+else:
+    # Respaldo automático si la base de datos no devuelve datos o está vacía
     ITEMS_PRECARGADOS = {
         "Desarrollo MVP Web": {"costo": 50000, "pvp": 150000, "desc": "Sitio web básico en React/Python"},
         "Mantenimiento Mensual": {"costo": 10000, "pvp": 35000, "desc": "Soporte técnico y actualizaciones"},
         "Automatización con Bot": {"costo": 30000, "pvp": 90000, "desc": "Bot de WhatsApp/Telegram para turnos"}
     }
 
-# 2. Función para crear el PDF (Estructura Moderna FPDF2)
+# 2. Función para subir el PDF al Storage Bucket y obtener la URL pública
+def subir_pdf_a_supabase_storage(pdf_bytes, nombre_archivo):
+    try:
+        bucket_name = "presupuestos"  # Asegurate de crear este bucket como 'Público' en el panel de Supabase
+        
+        # Subir el archivo binario
+        supabase.storage.from_(bucket_name).upload(
+            path=nombre_archivo,
+            file=pdf_bytes,
+            file_options={"content-type": "application/pdf", "x-upsert": "true"} # x-upsert sobreescribe si se llama igual
+        )
+        
+        # Obtener y retornar el enlace público definitivo
+        url_publica = supabase.storage.from_(bucket_name).get_public_url(nombre_archivo)
+        return url_publica
+    except Exception as storage_err:
+        st.error(f"Error al subir el archivo al almacenamiento: {storage_err}")
+        return None
+
+# 3. Función para crear el PDF (Mantiene tu estructura FPDF2 exacta)
 def generar_presupuesto_pdf(nombre, telefono, items_elegidos):
     pdf = FPDF()
     pdf.add_page()
@@ -139,7 +168,7 @@ def generar_presupuesto_pdf(nombre, telefono, items_elegidos):
     return bytes(pdf.output())
 
 # --- INTERFAZ ---
-st.title("💼 Generador de Presupuestos Express")
+st.title("💼 Generador de Presupuestos Automatizado")
 
 tab1, tab2 = st.tabs(["📄 Crear Presupuesto", "📊 Panel de Costos (Dueño)"])
 
@@ -159,37 +188,48 @@ with tab1:
         st.write("---")
         st.subheader("🚀 Acciones de Envío")
         
+        nombre_formateado = nombre_cliente.replace(' ', '_') if nombre_cliente else 'Cliente'
+        nombre_archivo_pdf = f"Presupuesto_{nombre_formateado}_{datetime.now().strftime('%d%m%Y_%H%M')}.pdf"
+        
+        # Generar el PDF en memoria una sola vez al seleccionar items
+        try:
+            pdf_bytes = generar_presupuesto_pdf(nombre_cliente, whatsapp, items_seleccionados)
+        except Exception as e:
+            st.error(f"Error al estructurar PDF: {e}")
+            pdf_bytes = None
+
         col_btn1, col_btn2 = st.columns(2)
         
         with col_btn1:
-            try:
-                pdf_bytes = generar_presupuesto_pdf(nombre_cliente, whatsapp, items_seleccionados)
+            if pdf_bytes:
                 st.download_button(
-                    label="📥 1. Descargar Presupuesto PDF",
+                    label="📥 Descargar copia local (Opcional)",
                     data=pdf_bytes,
-                    file_name=f"Presupuesto_{nombre_cliente.replace(' ', '_') if nombre_cliente else 'Cliente'}.pdf",
+                    file_name=nombre_archivo_pdf,
                     mime="application/pdf"
                 )
-                st.caption("Guardá el archivo formal en tu dispositivo.")
-            except Exception as pdf_err:
-                st.error(f"Error generando el PDF: {pdf_err}")
                 
         with col_btn2:
-            resumen_texto = "".join([f"- {i}: ${ITEMS_PRECARGADOS[i]['pvp']:,}\n" for i in items_seleccionados])
-            mensaje_ws = (
-                f"¡Hola {nombre_cliente if nombre_cliente else 'Cliente'}! Te adjunto el detalle del presupuesto solicitado:\n\n"
-                f"{resumen_texto}\n"
-                f"*Total: ${total_pvp:,}*\n\n"
-                f"*(Te adjunto el documento PDF formal por este medio)*"
-            )
-            mensaje_encoded = urllib.parse.quote(mensaje_ws)
-            link_whatsapp = f"https://wa.me/{whatsapp}?text={mensaje_encoded}"
-            
-            if whatsapp:
-                st.markdown(f"### [💬 2. Abrir WhatsApp y Adjuntar]({link_whatsapp})")
-                st.caption("Abre el chat con el texto listo. Solo tocás el clip y arrastrás el PDF descargado.")
-            else:
-                st.warning("Falta cargar el número de WhatsApp.")
+            if pdf_bytes and st.button("🔗 Generar Enlace y Preparar WhatsApp"):
+                with st.spinner("Subiendo PDF de forma segura a Supabase..."):
+                    url_pdf = subir_pdf_a_supabase_storage(pdf_bytes, nombre_archivo_pdf)
+                    
+                    if url_pdf:
+                        resumen_texto = "".join([f"- {i}: ${ITEMS_PRECARGADOS[i]['pvp']:,}\n" for i in items_seleccionados])
+                        mensaje_ws = (
+                            f"¡Hola {nombre_cliente if nombre_cliente else 'Cliente'}! Te adjunto el detalle del presupuesto solicitado:\n\n"
+                            f"{resumen_texto}\n"
+                            f"*Total: ${total_pvp:,}*\n\n"
+                            f"📄 Podés ver y descargar tu PDF formal desde acá:\n{url_pdf}"
+                        )
+                        mensaje_encoded = urllib.parse.quote(mensaje_ws)
+                        link_whatsapp = f"https://wa.me/{whatsapp}?text={mensaje_encoded}"
+                        
+                        if whatsapp:
+                            st.success("¡Enlace generado exitosamente!")
+                            st.markdown(f"### [💬 Hacer clic para enviar por WhatsApp]({link_whatsapp})")
+                        else:
+                            st.warning("El PDF se subió con éxito, pero necesitás ingresar el número de WhatsApp para abrir el chat.")
 
 with tab2:
     st.subheader("📈 Análisis de Rentabilidad")
