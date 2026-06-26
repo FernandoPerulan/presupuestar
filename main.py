@@ -154,8 +154,11 @@ def generar_presupuesto_pdf(nombre, telefono, items_elegidos):
     pdf.cell(180, 5, "Gracias por confiar en nosotros para la optimización de su negocio.", align="C", new_x="LMARGIN", new_y="NEXT")
     pdf.cell(180, 5, "InnovaSoft © 2026 - Mendoza, Argentina", align="C", new_x="LMARGIN", new_y="NEXT")
     
-    # .output() en fpdf2 devuelve bytes por defecto si no hay archivo de destino
-    return pdf.output()
+    # ... (todo el código previo de tu estructura del PDF) ...
+    pdf.cell(180, 5, "InnovaSoft © 2026 - Mendoza, Argentina", align="C", new_x="LMARGIN", new_y="NEXT")
+    
+    # 🌟 LA SOLUCIÓN: Convertir el bytearray de fpdf2 a bytes puros para Streamlit
+    return bytes(pdf.output())
 
 # --- VISTA DE PESTAÑAS CONTROLLER ---
 st.title("💼 Generador de Presupuestos Express")
