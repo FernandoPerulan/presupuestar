@@ -217,10 +217,15 @@ with tab1:
                     if url_pdf:
                         resumen_texto = "".join([f"- {i}: ${ITEMS_PRECARGADOS[i]['pvp']:,}\n" for i in items_seleccionados])
                         mensaje_ws = (
-                            f"¡Hola {nombre_cliente if nombre_cliente else 'Cliente'}! Te adjunto el detalle del presupuesto solicitado:\n\n"
-                            f"{resumen_texto}\n"
-                            f"*Total: ${total_pvp:,}*\n\n"
-                            f"📄 Podés ver y descargar tu PDF formal desde acá:\n{url_pdf}"
+                            f"💼 *InnovaSoft Tech — Presupuesto*\n\n"
+                            f"¡Hola {nombre_cliente if nombre_cliente else 'Cliente'}! "
+                            f"Te adjunto el detalle de la solución digital solicitada:\n\n"
+                            f"{resumen_texto}\n"  # Acá cada ítem puede arrancar con 🔹 o 🖥️
+                            f"💰 *Total Estimado: ${total_pvp:,}*\n"
+                            f"📅 _Validez del presupuesto: 15 días_\n\n"
+                            f"📄 Podés ver y descargar el documento formal completo desde acá:\n"
+                            f"{url_pdf}\n\n"
+                            f"🤝 Quedo a tu disposición para cualquier consulta."
                         )
                         mensaje_encoded = urllib.parse.quote(mensaje_ws)
                         link_whatsapp = f"https://wa.me/{whatsapp}?text={mensaje_encoded}"
