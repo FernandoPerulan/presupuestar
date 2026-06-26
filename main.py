@@ -167,6 +167,22 @@ def generar_presupuesto_pdf(nombre, telefono, items_elegidos):
     
     return bytes(pdf.output())
 
+# 4. Función para insertar un nuevo producto en la base de datos
+def guardar_producto_supabase(nombre, costo, pvp, descripcion):
+    try:
+        data = {
+            "producto": nombre.strip(),
+            "costo": int(costo),
+            "pvp": int(pvp),
+            "descripcion": descripcion.strip()
+        }
+        response = supabase.table("productos").insert(data).execute()
+        return response
+    except Exception as e:
+        st.error(f"Error al guardar el producto en la base de datos: {e}")
+        return None
+
+
 # --- INTERFAZ ---
 st.title("💼 Generador de Presupuestos Automatizado")
 
@@ -287,17 +303,3 @@ with tab3:
                         # Forzamos un leve refresh visual
                         st.rerun()
 
-# 4. Función para insertar un nuevo producto en la base de datos
-def guardar_producto_supabase(nombre, costo, pvp, descripcion):
-    try:
-        data = {
-            "producto": nombre.strip(),
-            "costo": int(costo),
-            "pvp": int(pvp),
-            "descripcion": descripcion.strip()
-        }
-        response = supabase.table("productos").insert(data).execute()
-        return response
-    except Exception as e:
-        st.error(f"Error al guardar el producto en la base de datos: {e}")
-        return None
