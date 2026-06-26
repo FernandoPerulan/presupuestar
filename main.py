@@ -220,7 +220,7 @@ with tab1:
                         
                         # Estructura limpia con separadores ASCII claros
                         mensaje_ws = (
-                            f"--- INNOVASOFT TECH — PRESUPUESTO ---\n\n"
+                            f"✰✰✰ PRESUPUESTAR - TÚ PRESUPUESTO EXPRESS!✰✰✰\n\n"
                             f"Hola {nombre_cliente if nombre_cliente else 'Cliente'}. "
                             f"Te adjunto el detalle de la solucion digital solicitada:\n\n"
                             f"{resumen_texto}\n"
